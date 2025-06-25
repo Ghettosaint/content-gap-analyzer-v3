@@ -150,33 +150,69 @@ class DataDrivenSEOAnalyzer:
             # Fallback stopwords if NLTK fails
             self.stop_words = {'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'this', 'that', 'these', 'those', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'about', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'up', 'down', 'out', 'off', 'over', 'under', 'again', 'further', 'then', 'once'}
     
-    def run_analysis(self, keyword: str, num_competitors: int = 10) -> Dict:
-        """Main method to run the complete SEO analysis"""
+    def run_analysis(self, keyword: str, num_competitors: int = 8):
+        """Run complete analysis and return results dictionary"""
+        st.header(f"🎯 Data-Driven Analysis: '{keyword}'")
+        
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
         try:
-            # Get competitor URLs
+            # Step 1: Find competitors
+            status_text.text("🔍 Finding competitors...")
+            progress_bar.progress(0.1)
             competitor_urls = self.get_competitor_urls(keyword, num_competitors)
+            
             if not competitor_urls:
                 return {"error": "No competitors found"}
             
-            # Scrape competitor content
-            competitor_topics = self.scrape_competitor_content(competitor_urls)
-            
-            # Get Reddit discussions
-            reddit_topics = self.get_reddit_discussions(keyword)
-            
-            # Get search suggestions
+            # Step 2: Get search suggestions
+            status_text.text("🔍 Getting search suggestions...")
+            progress_bar.progress(0.2)
             search_topics = self.get_search_suggestions(keyword)
             
-            # Find content gaps
-            gaps = self.find_content_gaps(competitor_topics, reddit_topics, search_topics)
+            # Step 3: Mine Reddit
+            status_text.text("💬 Mining Reddit...")
+            progress_bar.progress(0.4)
+            reddit_topics = self.get_reddit_discussions(keyword)
             
-            # Find depth gaps
+            # Step 4: Analyze competitors
+            status_text.text("📄 Analyzing competitors...")
+            progress_bar.progress(0.5)
+            
+            # Check if scrape_competitor_content returns tuple or just topics
+            competitor_result = self.scrape_competitor_content(competitor_urls)
+            if isinstance(competitor_result, tuple):
+                competitor_topics, structure_insights = competitor_result
+            else:
+                competitor_topics = competitor_result
+                structure_insights = {}
+            
+            progress_bar.progress(0.7)
+            
+            # Step 5: Find depth gaps
+            status_text.text("📊 Finding thin content...")
             depth_gaps = self.find_depth_gaps(competitor_topics)
+            progress_bar.progress(0.8)
             
-            # Enhanced: Get structure insights
-            structure_insights = self.analyze_content_structure(competitor_topics)
+            # Step 6: Find content gaps
+            status_text.text("🎯 Identifying gaps...")
+            gaps = self.find_content_gaps(competitor_topics, reddit_topics, search_topics)
+            progress_bar.progress(0.9)
             
+            # Step 7: Generate actionable topics
+            status_text.text("📝 Creating actionable topics...")
+            actionable_topics = self.generate_actionable_topics(gaps, depth_gaps, reddit_topics, search_topics)
+            
+            # Step 8: Create visualization
+            status_text.text("📊 Creating visualization...")
+            fig = self.create_3d_visualization(competitor_topics, reddit_topics, search_topics, depth_gaps, gaps)
+            progress_bar.progress(1.0)
+            status_text.text("✅ Analysis complete!")
+            
+            # Return dictionary with all results
             return {
+                'success': True,
                 'competitor_urls': competitor_urls,
                 'competitor_topics': competitor_topics,
                 'reddit_topics': reddit_topics,
@@ -184,12 +220,16 @@ class DataDrivenSEOAnalyzer:
                 'gaps': gaps,
                 'depth_gaps': depth_gaps,
                 'structure_insights': structure_insights,
+                'actionable_topics': actionable_topics,
+                'visualization': fig,
                 'total_opportunities': len(gaps) + len(depth_gaps)
             }
             
         except Exception as e:
+            status_text.text("❌ Analysis failed!")
             return {"error": f"Analysis failed: {str(e)}"}
 
+    
     def scrape_competitor_content(self, urls: List[str]) -> List[TopicData]:
         """Scrape content from competitor URLs"""
         all_topics = []
@@ -2696,7 +2736,269 @@ def main():
             num_competitors = st.slider("Competitors", 3, 12, 8)
             
             analyze_btn = st.button("🎯 Find Content Gaps", type="primary")
-            
+
+        if analyze_btn:
+                    try:
+                        analyzer = DataDrivenSEOAnalyzer(serper_key, reddit_id, reddit_secret)
+                        results = analyzer.run_analysis(keyword, num_competitors)
+                        
+                        # Check for errors
+                        if 'error' in results:
+                            st.error(results['error'])
+                            return
+                        
+                        # Extract data from results dictionary
+                        competitor_urls = results.get('competitor_urls', [])
+                        competitor_topics = results.get('competitor_topics', [])
+                        reddit_topics = results.get('reddit_topics', [])
+                        search_topics = results.get('search_topics', [])
+                        gaps = results.get('gaps', [])
+                        depth_gaps = results.get('depth_gaps', [])
+                        structure_insights = results.get('structure_insights', {})
+                        actionable_topics = results.get('actionable_topics', [])
+                        fig = results.get('visualization')
+                        
+                        # Display results
+                        col1, col2 = st.columns([2, 1])
+                        
+                        with col1:
+                            if fig:
+                                # Display the chart with click functionality
+                                st.plotly_chart(fig, use_container_width=True, key="main_chart", on_select="rerun")
+                                
+                                # Handle click events
+                                if st.session_state.get("main_chart", {}).get("selection", {}).get("points"):
+                                    selected_points = st.session_state["main_chart"]["selection"]["points"]
+                                    
+                                    if selected_points:
+                                        # Get the first selected point
+                                        point = selected_points[0]
+                                        point_index = point.get("pointIndex")
+                                        curve_number = point.get("curveNumber")
+                                        
+                                        # Map curve number to data source
+                                        trace_names = ['🏢 Competitor Content', '💬 Reddit Questions', '🔍 Search Suggestions', 
+                                                      '📊 Thin Content Gaps', '🎯 CONTENT GAPS']
+                                        
+                                        if curve_number is not None and curve_number < len(trace_names):
+                                            trace_name = trace_names[curve_number]
+                                            
+                                            # Get the corresponding topic data
+                                            selected_topic = None
+                                            
+                                            if trace_name == '🏢 Competitor Content' and point_index < len(competitor_topics):
+                                                selected_topic = competitor_topics[point_index]
+                                            elif trace_name == '💬 Reddit Questions':
+                                                if point_index < len(reddit_topics):
+                                                    selected_topic = reddit_topics[point_index]
+                                            elif trace_name == '🔍 Search Suggestions':
+                                                if point_index < len(search_topics):
+                                                    selected_topic = search_topics[point_index]
+                                            elif trace_name == '📊 Thin Content Gaps':
+                                                if point_index < len(depth_gaps):
+                                                    selected_topic = depth_gaps[point_index]
+                                            elif trace_name == '🎯 CONTENT GAPS':
+                                                if point_index < len(gaps):
+                                                    selected_topic = gaps[point_index]
+                                            
+                                            # Display selected point details
+                                            if selected_topic:
+                                                st.success("🎯 **Point Selected!** Click anywhere else to deselect.")
+                                                
+                                                col_detail1, col_detail2 = st.columns([2, 1])
+                                                
+                                                with col_detail1:
+                                                    st.subheader(f"{trace_name} - Details")
+                                                    
+                                                    # Topic text
+                                                    st.write(f"**📝 Topic:** {selected_topic.text}")
+                                                    
+                                                    # Source information
+                                                    if selected_topic.source == 'competitor':
+                                                        comp_name = competitor_urls[selected_topic.competitor_id].split('/')[2].replace('www.', '') if selected_topic.competitor_id < len(competitor_urls) else 'Unknown'
+                                                        st.write(f"**🏢 Competitor:** {comp_name}")
+                                                        st.write(f"**📄 Word Count:** {selected_topic.word_count} words")
+                                                    elif selected_topic.source == 'reddit':
+                                                        st.write(f"**👍 Upvotes:** {selected_topic.upvotes}")
+                                                        st.write(f"**💬 Source:** Reddit discussion")
+                                                    elif selected_topic.source == 'search_suggest':
+                                                        st.write(f"**🔍 Source:** Google search suggestions")
+                                                        st.write(f"**💡 Insight:** People actively search for this")
+                                                    elif selected_topic.source == 'depth_gap':
+                                                        st.write(f"**📊 Current depth:** {selected_topic.word_count} words")
+                                                        st.write(f"**💡 Opportunity:** Create comprehensive guide")
+                                                    
+                                                    # Confidence score
+                                                    st.write(f"**🎯 Confidence:** {selected_topic.confidence:.1%}")
+                                                    
+                                                    # URL if available
+                                                    if selected_topic.source_url and selected_topic.source_url != 'google_autocomplete':
+                                                        st.write(f"**🔗 URL:** [{selected_topic.source_url}]({selected_topic.source_url})")
+                                                        
+                                                        # Copy URL button
+                                                        if st.button("📋 Copy URL", key=f"copy_{point_index}_{curve_number}"):
+                                                            st.code(selected_topic.source_url)
+                                                            st.success("URL copied to display! You can copy it from above.")
+                                                
+                                                with col_detail2:
+                                                    # Action recommendations
+                                                    st.subheader("💡 Action Items")
+                                                    
+                                                    if selected_topic.source == 'competitor':
+                                                        st.info("**Competitor Analysis:**")
+                                                        st.write("• Analyze their content approach")
+                                                        st.write("• Identify improvement opportunities") 
+                                                        st.write("• Note their content structure")
+                                                    elif selected_topic.source in ['reddit', 'search_suggest', 'depth_gap']:
+                                                        st.success("**Content Opportunity:**")
+                                                        st.write("• Create comprehensive content")
+                                                        st.write("• Target this specific topic")
+                                                        st.write("• Address user questions directly")
+                                                    
+                                                    # SEO recommendations
+                                                    st.subheader("🎯 SEO Strategy")
+                                                    if selected_topic.source == 'search_suggest':
+                                                        st.write("• High search volume potential")
+                                                        st.write("• Target exact search query")
+                                                        st.write("• Optimize for featured snippets")
+                                                    elif selected_topic.source == 'reddit':
+                                                        st.write("• Answer real user questions")
+                                                        st.write("• Create FAQ-style content")
+                                                        st.write("• Build topical authority")
+                                                    elif selected_topic.source == 'depth_gap':
+                                                        st.write("• Create definitive guide")
+                                                        st.write("• Aim for 2000+ words")
+                                                        st.write("• Outrank thin content")
+                                                    
+                                                st.markdown("---")
+                                                
+                                                # Clear selection button
+                                                if st.button("🔄 Clear Selection", key="clear_selection"):
+                                                    if "main_chart" in st.session_state:
+                                                        del st.session_state["main_chart"]
+                                                    st.rerun()
+                            else:
+                                st.error("No data found for visualization")
+                        
+                        with col2:
+                            # Enhanced Analysis Summary
+                            st.subheader("📊 Enhanced Analysis Summary")
+                            
+                            # Main metrics
+                            col1_sum, col2_sum, col3_sum, col4_sum = st.columns(4)
+                            with col1_sum:
+                                st.metric("Content Gaps Found", len(gaps), help="Opportunities based on competitor analysis")
+                            with col2_sum:
+                                st.metric("Competitors Analyzed", len(competitor_urls), help="Deep semantic analysis performed")
+                            with col3_sum:
+                                st.metric("Reddit Discussions", len(reddit_topics), help="Real user conversations analyzed")
+                            with col4_sum:
+                                if structure_insights and structure_insights.get('common_patterns'):
+                                    content_types_found = len(structure_insights['common_patterns'])
+                                    st.metric("Content Types Found", content_types_found, help="Different content structures identified")
+                                else:
+                                    st.metric("Search Results", len(search_topics), help="Additional research data")
+                            
+                            # Enhanced features summary
+                            st.subheader("🚀 Enhanced Features Applied")
+                            
+                            enhancement_col1, enhancement_col2 = st.columns(2)
+                            
+                            with enhancement_col1:
+                                st.markdown("**🔬 Semantic Analysis:**")
+                                if structure_insights:
+                                    st.success("✅ Advanced content structure analysis")
+                                    st.success("✅ Semantic chunking applied") 
+                                    st.success("✅ Content type gap identification")
+                                else:
+                                    st.info("📊 Basic analysis completed")
+                                
+                                st.markdown("**📈 AI-Powered Insights:**")
+                                st.success("✅ Sentence-transformer embeddings")
+                                st.success("✅ Contextual similarity scoring")
+                                st.success("✅ Multi-source data integration")
+                            
+                            with enhancement_col2:
+                                st.markdown("**🎯 Actionable Recommendations:**")
+                                if actionable_topics:
+                                    st.success(f"✅ {len(actionable_topics)} specific content ideas")
+                                if depth_gaps:
+                                    st.success(f"✅ {len(depth_gaps)} depth improvement areas")
+                                if structure_insights and structure_insights.get('content_gaps'):
+                                    st.success(f"✅ {len(structure_insights['content_gaps'])} structure opportunities")
+                                
+                                st.markdown("**💡 Research Sources:**")
+                                st.success("✅ Competitor website analysis")
+                                st.success("✅ Reddit community insights") 
+                                st.success("✅ Search engine data")
+                            
+                            st.markdown("---")
+                            
+                            st.subheader("🎯 Actionable Content Ideas")
+                            
+                            for i, topic in enumerate(actionable_topics[:8], 1):
+                                with st.expander(f"#{i} {topic['title'][:50]}... (Score: {topic['opportunity_score']:.0f})"):
+                                    st.write(f"**📝 Topic:** {topic['title']}")
+                                    st.write(f"**🎯 Difficulty:** {topic['difficulty']}")
+                                    st.write(f"**💡 Why gap:** {topic['why_gap']}")
+                                    st.write(f"**📋 Angle:** {topic['content_angle']}")
+                                    
+                                    if topic['source'] == 'reddit' and topic['upvotes'] > 0:
+                                        st.write(f"**👍 Engagement:** {topic['upvotes']} upvotes")
+                                    
+                                    # Enhanced source explanation
+                                    source_explanations = {
+                                        'search_suggest': '🔍 Search Suggest: Real Google autocomplete data - people actually search for this',
+                                        'reddit': '💬 Reddit: Real user questions from Reddit communities',
+                                        'depth_gap': '📊 Depth Gap: Competitors have thin content here (opportunity for comprehensive guide)',
+                                        'competitor': '🏢 Competitor: Found in competitor analysis',
+                                        'semantic_reddit': '🧠 Semantic Reddit: AI-identified gap from Reddit discussions',
+                                        'semantic_search_suggest': '🧠 Semantic Search: AI-identified gap from search patterns'
+                                    }
+                                    
+                                    source_key = topic['source']
+                                    explanation = source_explanations.get(source_key, f"Source: {source_key.replace('_', ' ').title()}")
+                                    st.caption(explanation)
+                            
+                            st.subheader("📊 Data Sources")
+                            st.metric("Reddit Questions", len(reddit_topics))
+                            st.metric("Search Suggestions", len(search_topics))
+                            st.metric("Thin Content Gaps", len(depth_gaps))
+                            st.metric("Total Opportunities", len(actionable_topics))
+                            
+                            st.subheader("🏢 Competitors Analyzed")
+                            for i, url in enumerate(competitor_urls, 1):
+                                domain = url.split('/')[2].replace('www.', '')
+                                st.write(f"**{i}.** [{domain}]({url})")
+        
+                            # Structure Analysis Results
+                            st.subheader("🏗️ Content Structure Analysis")
+                            
+                            if structure_insights and structure_insights.get('common_patterns'):
+                                col1, col2 = st.columns(2)
+                                
+                                with col1:
+                                    st.write("**Content Type Usage Across Competitors:**")
+                                    for content_type, data in structure_insights['common_patterns'].items():
+                                        usage_pct = data['usage_percentage']
+                                        emoji = "🟢" if usage_pct > 80 else "🟡" if usage_pct > 50 else "🔴"
+                                        st.write(f"{emoji} **{content_type.replace('_', ' ').title()}**: {usage_pct:.0f}% use it")
+                                
+                                with col2:
+                                    st.write("**Content Structure Opportunities:**")
+                                    if structure_insights.get('content_gaps'):
+                                        for gap in structure_insights['content_gaps'][:5]:  # Show top 5
+                                            st.write(f"🎯 **{gap['content_type'].replace('_', ' ').title()}**: {gap['opportunity']}")
+                                            st.caption(gap['recommendation'])
+                                    else:
+                                        st.write("✅ Good coverage of content types across competitors")
+                            else:
+                                st.info("📊 Structure analysis available - competitor content analyzed semantically")
+                                            
+                    except Exception as e:
+                        st.error(f"Error during analysis: {str(e)}")
+                        st.exception(e)
+                
         else:  # Website Relevance Analysis
             website_url = st.text_input(
                 "Website URL", 
