@@ -2124,7 +2124,7 @@ def main():
                         domain = url.split('/')[2].replace('www.', '')
                         st.write(f"**{i}.** [{domain}]({url})")
 
-                    # NEW: Structure Analysis Results
+    # NEW: Structure Analysis Results
                     st.subheader("🏗️ Content Structure Analysis")
                     
                     if structure_insights and structure_insights.get('common_patterns'):
@@ -2147,10 +2147,10 @@ def main():
                                 st.write("✅ Good coverage of content types across competitors")
                     else:
                         st.info("📊 Structure analysis available - competitor content analyzed semantically")
-                                
-                        except Exception as e:
-                            st.error(f"Error during analysis: {str(e)}")
-                            st.exception(e)
+                                    
+                except Exception as e:
+                    st.error(f"Error during analysis: {str(e)}")
+                    st.exception(e)
     
     else:  # Website Relevance Analysis
         if not website_url:
