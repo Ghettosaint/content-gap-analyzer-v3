@@ -2148,9 +2148,9 @@ def main():
                     else:
                         st.info("📊 Structure analysis available - competitor content analyzed semantically")
                                 
-                                except Exception as e:
-                                    st.error(f"Error during analysis: {str(e)}")
-                                    st.exception(e)
+                            except Exception as e:
+                                st.error(f"Error during analysis: {str(e)}")
+                                st.exception(e)
     
     else:  # Website Relevance Analysis
         if not website_url:
