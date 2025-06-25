@@ -753,7 +753,7 @@ class DataDrivenSEOAnalyzer:
                     word_count=20
                 )
             ]
-    
+            
     def mine_reddit_discussions(self, keyword: str, max_posts: int = 30) -> List[TopicData]:
         """Mine Reddit for real user questions - NO FALLBACKS"""
         reddit_topics = []
