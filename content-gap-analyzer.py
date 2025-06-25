@@ -1643,7 +1643,7 @@ class DataDrivenSEOAnalyzer:
         
         # Step 4: Analyze competitors
         status_text.text("📄 Analyzing competitors...")
-        competitor_topics = self.scrape_competitor_content(competitor_urls, progress_bar)
+        competitor_topics, structure_insights = self.scrape_competitor_content(competitor_urls, progress_bar)
         progress_bar.progress(0.7)
         
         # Step 5: Find thin content
@@ -1667,7 +1667,7 @@ class DataDrivenSEOAnalyzer:
         progress_bar.progress(1.0)
         status_text.text("✅ Analysis complete!")
         
-        return fig, gaps, competitor_topics, competitor_urls, reddit_topics, search_topics, depth_gaps, actionable_topics
+        return fig, gaps, competitor_topics, competitor_urls, reddit_topics, search_topics, depth_gaps, actionable_topics, structure_insights
 
 # Streamlit App
 def main():
