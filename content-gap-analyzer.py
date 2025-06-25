@@ -352,6 +352,168 @@ class DataDrivenSEOAnalyzer:
             return 'comprehensive_content'
         else:
             return 'standard_content'
+
+    def _extract_semantic_chunks(self, soup, url: str) -> List[Dict]:
+        """Extract semantic chunks using improved content analysis - works for all languages"""
+        chunks = []
+        chunk_index = 0
+        
+        # Enhanced semantic selectors with more specific targeting
+        semantic_selectors = [
+            ('h1, h2, h3, h4, h5, h6', 'heading'),
+            ('p', 'paragraph'), 
+            ('li', 'list_item'),
+            ('blockquote', 'quote'),
+            ('article', 'article'),
+            ('section', 'section'),
+            ('div.content, div.post-content, div.entry-content', 'content_div'),
+            ('td, th', 'table_cell'),
+            ('figcaption', 'caption'),
+            ('summary', 'summary'),
+            ('dd', 'definition'),
+            ('.text, .content-text', 'text_block')  # Common CSS classes for text
+        ]
+        
+        for selector, element_type in semantic_selectors:
+            elements = soup.select(selector)
+            
+            for element_index, element in enumerate(elements):
+                # Get text with better cleaning
+                text = element.get_text(separator=' ', strip=True)
+                
+                # More lenient text filtering for international content
+                if text and len(text.strip()) >= 20:  # Lowered from 50 to 20
+                    # Clean up whitespace
+                    text = ' '.join(text.split())
+                    
+                    # Skip if it's mostly numbers or very short words (likely navigation)
+                    words = text.split()
+                    if len(words) >= 3:  # At least 3 words
+                        # Check for reasonable word lengths (works for most languages)
+                        avg_word_length = sum(len(word) for word in words) / len(words)
+                        if avg_word_length >= 2:  # Reasonable average word length
+                            
+                            # Split long text into smaller chunks
+                            text_chunks = self._split_long_text_semantic(text, 800)  # Increased from 500
+                            
+                            for sub_index, chunk_text in enumerate(text_chunks):
+                                chunks.append({
+                                    'text': chunk_text,
+                                    'index': chunk_index,
+                                    'element_type': element_type,
+                                    'element_index': element_index,
+                                    'sub_chunk_index': sub_index,
+                                    'total_sub_chunks': len(text_chunks),
+                                    'text_length': len(chunk_text),
+                                    'source_url': url,
+                                    'word_count': len(chunk_text.split())
+                                })
+                                chunk_index += 1
+        
+        # If we still don't have many chunks, try a more aggressive approach
+        if len(chunks) < 5:
+            # Try to extract from common content containers
+            content_containers = soup.select('main, .main, .content, #content, .post, .entry, .article, body')
+            
+            for container in content_containers[:3]:  # Check top 3 containers
+                # Remove navigation and footer elements
+                for noise in container.select('nav, .nav, .navigation, .menu, footer, .footer, .sidebar, .widget'):
+                    noise.decompose()
+                
+                # Get remaining text
+                container_text = container.get_text(separator=' ', strip=True)
+                if container_text and len(container_text) > 200:
+                    # Split into sentences for better chunking
+                    sentences = []
+                    # Try multiple sentence splitting approaches
+                    for delimiter in ['. ', '! ', '? ', '.\n', '!\n', '?\n']:
+                        if delimiter in container_text:
+                            sentences.extend(container_text.split(delimiter))
+                            break
+                    
+                    if not sentences:
+                        # Fallback: split by line breaks
+                        sentences = [line.strip() for line in container_text.split('\n') if line.strip()]
+                    
+                    # Group sentences into chunks
+                    current_chunk = ''
+                    for sentence in sentences:
+                        sentence = sentence.strip()
+                        if sentence and len(sentence) > 10:
+                            if len(current_chunk + sentence) < 400:
+                                current_chunk += (' ' if current_chunk else '') + sentence
+                            else:
+                                if current_chunk:
+                                    chunks.append({
+                                        'text': current_chunk,
+                                        'index': chunk_index,
+                                        'element_type': 'content_block',
+                                        'element_index': 0,
+                                        'sub_chunk_index': 0,
+                                        'total_sub_chunks': 1,
+                                        'text_length': len(current_chunk),
+                                        'source_url': url,
+                                        'word_count': len(current_chunk.split())
+                                    })
+                                    chunk_index += 1
+                                current_chunk = sentence
+                    
+                    # Add final chunk
+                    if current_chunk:
+                        chunks.append({
+                            'text': current_chunk,
+                            'index': chunk_index,
+                            'element_type': 'content_block',
+                            'element_index': 0,
+                            'sub_chunk_index': 0,
+                            'total_sub_chunks': 1,
+                            'text_length': len(current_chunk),
+                            'source_url': url,
+                            'word_count': len(current_chunk.split())
+                        })
+                    break  # Stop after first successful container
+        
+        return chunks
+    
+    def _split_long_text_semantic(self, text: str, max_length: int = 800) -> List[str]:
+        """Split long text into semantic chunks"""
+        if len(text) <= max_length:
+            return [text]
+        
+        chunks = []
+        current_chunk = ""
+        
+        # Split by sentences first
+        sentences = []
+        for delimiter in ['. ', '! ', '? ']:
+            if delimiter in text:
+                sentences = text.split(delimiter)
+                break
+        
+        if not sentences:
+            # Fallback to word splitting
+            words = text.split()
+            chunk_size = max_length // 10  # Rough estimate
+            for i in range(0, len(words), chunk_size):
+                chunk_words = words[i:i + chunk_size]
+                chunks.append(' '.join(chunk_words))
+            return chunks
+        
+        # Group sentences into chunks
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if sentence:
+                if len(current_chunk + sentence) <= max_length:
+                    current_chunk += (' ' if current_chunk else '') + sentence
+                else:
+                    if current_chunk:
+                        chunks.append(current_chunk)
+                    current_chunk = sentence
+        
+        if current_chunk:
+            chunks.append(current_chunk)
+        
+        return chunks if chunks else [text]
         
     def search_competitors(self, keyword: str, num_results: int = 10) -> List[str]:
         """Search for competitor URLs using Serper"""
