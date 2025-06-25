@@ -2213,7 +2213,25 @@ def main():
             try:
                 analyzer = DataDrivenSEOAnalyzer(serper_key, reddit_id, reddit_secret)
                 results = analyzer.run_analysis(keyword, num_competitors)
-                fig, gaps, competitor_topics, competitor_urls, reddit_topics, search_topics, depth_gaps, actionable_topics, structure_insights = results
+                # Get results from analysis
+                if 'error' in results:
+                    st.error(results['error'])
+                    return
+                
+                # Extract data from results dictionary
+                competitor_urls = results.get('competitor_urls', [])
+                competitor_topics = results.get('competitor_topics', [])
+                reddit_topics = results.get('reddit_topics', [])
+                search_topics = results.get('search_topics', [])
+                gaps = results.get('gaps', [])
+                depth_gaps = results.get('depth_gaps', [])
+                structure_insights = results.get('structure_insights', {})
+                
+                # Generate actionable topics
+                actionable_topics = self.generate_actionable_topics(gaps, depth_gaps, reddit_topics, search_topics)
+                
+                # Create visualization
+                fig = self.create_3d_visualization(competitor_topics, reddit_topics, search_topics, depth_gaps, gaps)
                 
                 # Display results
                 col1, col2 = st.columns([2, 1])
