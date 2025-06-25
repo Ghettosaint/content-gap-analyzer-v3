@@ -1277,7 +1277,7 @@ class DataDrivenSEOAnalyzer:
                 'enhancement_applied': enhanced_similarity != basic_similarity
             }
         
-        def _generate_website_structure_recommendations(self, pages_data: List[Dict], target_topic: str) -> List[Dict]:
+    def _generate_website_structure_recommendations(self, pages_data: List[Dict], target_topic: str) -> List[Dict]:
             """Generate structure improvement recommendations for website analysis"""
             recommendations = []
             
