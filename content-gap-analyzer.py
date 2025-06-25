@@ -2046,6 +2046,59 @@ def main():
                         st.error("No data found for visualization")
                 
                 with col2:
+                    # Enhanced Analysis Summary
+                    st.subheader("📊 Enhanced Analysis Summary")
+                    
+                    # Main metrics
+                    col1_sum, col2_sum, col3_sum, col4_sum = st.columns(4)
+                    with col1_sum:
+                        st.metric("Content Gaps Found", len(gaps), help="Opportunities based on competitor analysis")
+                    with col2_sum:
+                        st.metric("Competitors Analyzed", len(competitor_urls), help="Deep semantic analysis performed")
+                    with col3_sum:
+                        st.metric("Reddit Discussions", len(reddit_topics), help="Real user conversations analyzed")
+                    with col4_sum:
+                        if structure_insights and structure_insights.get('common_patterns'):
+                            content_types_found = len(structure_insights['common_patterns'])
+                            st.metric("Content Types Found", content_types_found, help="Different content structures identified")
+                        else:
+                            st.metric("Search Results", len(search_topics), help="Additional research data")
+                    
+                    # Enhanced features summary
+                    st.subheader("🚀 Enhanced Features Applied")
+                    
+                    enhancement_col1, enhancement_col2 = st.columns(2)
+                    
+                    with enhancement_col1:
+                        st.markdown("**🔬 Semantic Analysis:**")
+                        if structure_insights:
+                            st.success("✅ Advanced content structure analysis")
+                            st.success("✅ Semantic chunking applied") 
+                            st.success("✅ Content type gap identification")
+                        else:
+                            st.info("📊 Basic analysis completed")
+                        
+                        st.markdown("**📈 AI-Powered Insights:**")
+                        st.success("✅ Sentence-transformer embeddings")
+                        st.success("✅ Contextual similarity scoring")
+                        st.success("✅ Multi-source data integration")
+                    
+                    with enhancement_col2:
+                        st.markdown("**🎯 Actionable Recommendations:**")
+                        if actionable_topics:
+                            st.success(f"✅ {len(actionable_topics)} specific content ideas")
+                        if depth_gaps:
+                            st.success(f"✅ {len(depth_gaps)} depth improvement areas")
+                        if structure_insights and structure_insights.get('content_gaps'):
+                            st.success(f"✅ {len(structure_insights['content_gaps'])} structure opportunities")
+                        
+                        st.markdown("**💡 Research Sources:**")
+                        st.success("✅ Competitor website analysis")
+                        st.success("✅ Reddit community insights") 
+                        st.success("✅ Search engine data")
+                    
+                    st.markdown("---")
+                    
                     st.subheader("🎯 Actionable Content Ideas")
                     
                     for i, topic in enumerate(actionable_topics[:8], 1):
