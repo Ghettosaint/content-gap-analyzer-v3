@@ -817,24 +817,11 @@ class DataDrivenSEOAnalyzer:
             
             for i in range(0, len(pages_data), batch_size):
                 batch = pages_data[i:i + batch_size]
-                batch_texts = [page['content'] for page in batch]
                 
-                # Process batch embeddings
-                batch_embeddings = self.embedding_model.encode(batch_texts, show_progress_bar=False)
-                
-                for j, page in enumerate(batch):
-                    # Calculate similarity to target topic
-                    similarity = cosine_similarity([target_embedding], [batch_embeddings[j]])[0][0]
-                    
-                    relevance_results.append({
-                        'url': page['url'],
-                        'title': page['title'],
-                        'word_count': page['word_count'],
-                        'similarity_score': similarity,
-                        'relevance_status': self._categorize_relevance(similarity),
-                        'content_preview': page['content'][:200] + "...",
-                        'main_topics': self._extract_main_topics(page['content'])
-                    })
+                for page in batch:
+                    # Use enhanced relevance calculation
+                    relevance_data = self._calculate_enhanced_relevance(page, target_embedding, target_topic)
+                    relevance_results.append(relevance_data)
                 
                 # Update progress
                 progress = min((i + batch_size) / len(pages_data), 1.0)
@@ -843,13 +830,21 @@ class DataDrivenSEOAnalyzer:
             # Sort by least relevant first (lowest similarity)
             relevance_results.sort(key=lambda x: x['similarity_score'])
             
+            # Generate structure recommendations
+            structure_recommendations = self._generate_website_structure_recommendations(relevance_results, target_topic)
+            
             return {
                 'target_topic': target_topic,
                 'total_pages': len(relevance_results),
                 'irrelevant_pages': len([r for r in relevance_results if r['relevance_status'] == 'Irrelevant']),
                 'somewhat_relevant': len([r for r in relevance_results if r['relevance_status'] == 'Somewhat Relevant']),
                 'highly_relevant': len([r for r in relevance_results if r['relevance_status'] == 'Highly Relevant']),
-                'pages': relevance_results
+                'pages': relevance_results,
+                'structure_recommendations': structure_recommendations,  # NEW
+                'enhancement_stats': {  # NEW
+                    'pages_enhanced': len([r for r in relevance_results if r.get('enhancement_applied', False)]),
+                    'avg_structure_quality': sum(r.get('structure_quality', 0) for r in relevance_results) / len(relevance_results)
+                }
             }
             
         except Exception as e:
