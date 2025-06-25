@@ -2111,7 +2111,19 @@ def main():
                             if topic['source'] == 'reddit' and topic['upvotes'] > 0:
                                 st.write(f"**👍 Engagement:** {topic['upvotes']} upvotes")
                             
-                            st.caption(f"Source: {topic['source'].replace('_', ' ').title()}")
+                            # Enhanced source explanation
+                    source_explanations = {
+                        'search_suggest': '🔍 Search Suggest: Real Google autocomplete data - people actually search for this',
+                        'reddit': '💬 Reddit: Real user questions from Reddit communities',
+                        'depth_gap': '📊 Depth Gap: Competitors have thin content here (opportunity for comprehensive guide)',
+                        'competitor': '🏢 Competitor: Found in competitor analysis',
+                        'semantic_reddit': '🧠 Semantic Reddit: AI-identified gap from Reddit discussions',
+                        'semantic_search_suggest': '🧠 Semantic Search: AI-identified gap from search patterns'
+                    }
+                    
+                    source_key = topic['source']
+                    explanation = source_explanations.get(source_key, f"Source: {source_key.replace('_', ' ').title()}")
+                    st.caption(explanation)
                     
                     st.subheader("📊 Data Sources")
                     st.metric("Reddit Questions", len(reddit_topics))
