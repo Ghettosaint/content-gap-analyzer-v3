@@ -528,6 +528,10 @@ class DataDrivenSEOAnalyzer:
                         chunk_texts = [chunk['text'] for chunk in semantic_chunks]
                         embeddings = self.embedding_model.encode(chunk_texts)
                         
+                        # Calculate total page word count once
+                        full_page_content = ' '.join([chunk['text'] for chunk in semantic_chunks])
+                        total_page_words = len([w for w in full_page_content.split() if w.isalpha()])
+                        
                         for chunk, embedding in zip(semantic_chunks, embeddings):
                             all_topics.append(TopicData(
                                 text=chunk['text'],
@@ -536,7 +540,7 @@ class DataDrivenSEOAnalyzer:
                                 source_url=url,
                                 competitor_id=i,
                                 confidence=0.7,
-                                word_count=len(chunk['text'].split())
+                                word_count=total_page_words  # <-- Fixed: Use total page words
                             ))
                     else:
                         # Fallback to old method if semantic chunking fails
