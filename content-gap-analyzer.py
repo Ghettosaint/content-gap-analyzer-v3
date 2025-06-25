@@ -281,55 +281,55 @@ class DataDrivenSEOAnalyzer:
         return [result['link'] for result in results.get('organic', [])]
 
     def get_competitor_urls(self, keyword: str, num_competitors: int = 10) -> List[str]:
-    """Get competitor URLs from search results"""
-    try:
-        if not self.serper_key or self.serper_key == "dummy":
-            # Return dummy URLs for testing
-            return [
-                "https://example1.com",
-                "https://example2.com", 
-                "https://example3.com"
-            ]
-        
-        # Use Serper API to get search results
-        search_url = "https://google.serper.dev/search"
-        
-        payload = {
-            'q': keyword,
-            'num': min(num_competitors, 20),  # API limit
-            'gl': 'us',
-            'hl': 'en'
-        }
-        
-        headers = {
-            'X-API-KEY': self.serper_key,
-            'Content-Type': 'application/json'
-        }
-        
-        response = requests.post(search_url, json=payload, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            urls = []
+        """Get competitor URLs from search results"""
+        try:
+            if not self.serper_key or self.serper_key == "dummy":
+                # Return dummy URLs for testing
+                return [
+                    "https://example1.com",
+                    "https://example2.com", 
+                    "https://example3.com"
+                ]
             
-            # Extract URLs from organic results
-            if 'organic' in data:
-                for result in data['organic'][:num_competitors]:
-                    if 'link' in result:
-                        url = result['link']
-                        # Filter out unwanted domains
-                        if not any(domain in url for domain in ['youtube.com', 'facebook.com', 'twitter.com', 'linkedin.com', 'instagram.com']):
-                            urls.append(url)
+            # Use Serper API to get search results
+            search_url = "https://google.serper.dev/search"
             
-            return urls[:num_competitors] if urls else ["https://example.com"]
-        
-        else:
-            st.warning(f"Search API error: {response.status_code}")
+            payload = {
+                'q': keyword,
+                'num': min(num_competitors, 20),  # API limit
+                'gl': 'us',
+                'hl': 'en'
+            }
+            
+            headers = {
+                'X-API-KEY': self.serper_key,
+                'Content-Type': 'application/json'
+            }
+            
+            response = requests.post(search_url, json=payload, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                urls = []
+                
+                # Extract URLs from organic results
+                if 'organic' in data:
+                    for result in data['organic'][:num_competitors]:
+                        if 'link' in result:
+                            url = result['link']
+                            # Filter out unwanted domains
+                            if not any(domain in url for domain in ['youtube.com', 'facebook.com', 'twitter.com', 'linkedin.com', 'instagram.com']):
+                                urls.append(url)
+                
+                return urls[:num_competitors] if urls else ["https://example.com"]
+            
+            else:
+                st.warning(f"Search API error: {response.status_code}")
+                return ["https://example.com"]
+                
+        except Exception as e:
+            st.warning(f"Error getting competitors: {str(e)}")
             return ["https://example.com"]
-            
-    except Exception as e:
-        st.warning(f"Error getting competitors: {str(e)}")
-        return ["https://example.com"]
     
     def get_search_suggestions(self, keyword: str) -> List[TopicData]:
         """Get real search suggestions from Google Autocomplete - NO FALLBACKS"""
