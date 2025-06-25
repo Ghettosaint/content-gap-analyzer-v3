@@ -642,6 +642,7 @@ class DataDrivenSEOAnalyzer:
                         embedding=self.embedding_model.encode([f"How to use {keyword} effectively?"])[0],
                         source='reddit',
                         source_url='https://reddit.com/r/example',
+                        competitor_id=-1,
                         upvotes=25,
                         confidence=0.8,
                         word_count=50
@@ -651,6 +652,7 @@ class DataDrivenSEOAnalyzer:
                         embedding=self.embedding_model.encode([f"Best {keyword} alternatives discussion"])[0],
                         source='reddit',
                         source_url='https://reddit.com/r/example2',
+                        competitor_id=-1,
                         upvotes=15,
                         confidence=0.7,
                         word_count=35
@@ -706,6 +708,7 @@ class DataDrivenSEOAnalyzer:
                                 embedding=embedding,
                                 source='reddit',
                                 source_url=url,
+                                competitor_id=-1,
                                 upvotes=upvotes,
                                 confidence=0.8,
                                 word_count=len(full_text.split())
@@ -727,6 +730,7 @@ class DataDrivenSEOAnalyzer:
                         embedding=embedding,
                         source='reddit',
                         source_url='https://reddit.com/r/example',
+                        competitor_id=-1,
                         upvotes=5,
                         confidence=0.6,
                         word_count=len(question.split())
@@ -743,6 +747,7 @@ class DataDrivenSEOAnalyzer:
                     embedding=self.embedding_model.encode([f"Discussion about {keyword}"])[0],
                     source='reddit',
                     source_url='https://reddit.com',
+                    competitor_id=-1,
                     upvotes=1,
                     confidence=0.5,
                     word_count=20
