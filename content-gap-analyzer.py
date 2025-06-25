@@ -498,75 +498,97 @@ class DataDrivenSEOAnalyzer:
         
         return insights
         
-    def scrape_competitor_content(self, urls: List[str], progress_bar=None) -> List[TopicData]:
-        """Scrape competitor content with proper depth analysis"""
-        all_topics = []
-        
-        for i, url in enumerate(urls):
-            if progress_bar:
-                progress_bar.progress((i + 1) / len(urls), f"Analyzing competitor {i+1}/{len(urls)}")
+    def scrape_competitor_content(self, urls: List[str], progress_bar=None) -> Tuple[List[TopicData], Dict]:
+            """Enhanced competitor analysis with semantic chunking and structure insights"""
+            all_topics = []
+            competitor_structures = {}
             
-            try:
-                response = requests.get(url, headers=self.headers, timeout=10)
-                response.raise_for_status()
+            for i, url in enumerate(urls):
+                if progress_bar:
+                    progress_bar.progress((i + 1) / len(urls), f"Enhanced analysis of competitor {i+1}/{len(urls)}")
                 
-                soup = BeautifulSoup(response.content, 'html.parser')
-                
-                # Remove noise
-                for element in soup(["script", "style", "nav", "footer", "header", "aside"]):
-                    element.decompose()
-                
-                # Get main content
-                content = ""
-                content_selectors = ['article', 'main', '.content', '#content', '.post-content', '.entry-content']
-                
-                for selector in content_selectors:
-                    elements = soup.select(selector)
-                    if elements:
-                        content = ' '.join([elem.get_text() for elem in elements])
-                        break
-                
-                if not content:
-                    body = soup.find('body')
-                    content = body.get_text() if body else ""
-                
-                content = re.sub(r'\s+', ' ', content).strip()
-                
-                # Calculate total article word count
-                total_words = len([w for w in word_tokenize(content.lower()) 
-                                 if w.isalpha() and w not in self.stop_words])
-                
-                if total_words > 100:
-                    # Extract headings for topic analysis
-                    headings = []
-                    for tag in ['h1', 'h2', 'h3']:
-                        for heading in soup.find_all(tag):
-                            heading_text = heading.get_text().strip()
-                            if 10 <= len(heading_text) <= 100:
-                                headings.append(heading_text)
+                try:
+                    response = requests.get(url, headers=self.headers, timeout=10)
+                    response.raise_for_status()
                     
-                    # Process headings as topics
-                    if headings:
-                        embeddings = self.embedding_model.encode(headings[:5])  # Top 5 headings
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    
+                    # Remove noise
+                    for element in soup(["script", "style", "nav", "footer", "header", "aside"]):
+                        element.decompose()
+                    
+                    # NEW: Extract semantic chunks
+                    semantic_chunks = self._extract_semantic_chunks(soup, url)
+                    
+                    # NEW: Analyze competitor's content structure
+                    if semantic_chunks:
+                        competitor_structures[url] = self._analyze_single_page_structure(semantic_chunks, url)
                         
-                        for heading, embedding in zip(headings[:5], embeddings):
+                        # Process chunks for embeddings
+                        chunk_texts = [chunk['text'] for chunk in semantic_chunks]
+                        embeddings = self.embedding_model.encode(chunk_texts)
+                        
+                        for chunk, embedding in zip(semantic_chunks, embeddings):
                             all_topics.append(TopicData(
-                                text=heading,
+                                text=chunk['text'],
                                 embedding=embedding,
-                                source='competitor',
+                                source='competitor_deep',
                                 source_url=url,
                                 competitor_id=i,
-                                confidence=0.6,
-                                word_count=total_words  # Total article word count
+                                confidence=0.7,
+                                word_count=len(chunk['text'].split())
                             ))
-                
-                time.sleep(1)
-                
-            except Exception as e:
-                st.warning(f"Error analyzing {url}: {str(e)}")
-                continue
-        
-        return all_topics
+                    else:
+                        # Fallback to old method if semantic chunking fails
+                        content = ""
+                        content_selectors = ['article', 'main', '.content', '#content', '.post-content', '.entry-content']
+                        
+                        for selector in content_selectors:
+                            elements = soup.select(selector)
+                            if elements:
+                                content = ' '.join([elem.get_text() for elem in elements])
+                                break
+                        
+                        if not content:
+                            body = soup.find('body')
+                            content = body.get_text() if body else ""
+                        
+                        content = re.sub(r'\s+', ' ', content).strip()
+                        total_words = len([w for w in content.split() if w.isalpha()])
+                        
+                        if total_words > 100:
+                            # Get headings as fallback
+                            headings = []
+                            for tag in ['h1', 'h2', 'h3']:
+                                for heading in soup.find_all(tag):
+                                    heading_text = heading.get_text().strip()
+                                    if 10 <= len(heading_text) <= 100:
+                                        headings.append(heading_text)
+                            
+                            if headings:
+                                embeddings = self.embedding_model.encode(headings[:5])
+                                
+                                for heading, embedding in zip(headings[:5], embeddings):
+                                    all_topics.append(TopicData(
+                                        text=heading,
+                                        embedding=embedding,
+                                        source='competitor',
+                                        source_url=url,
+                                        competitor_id=i,
+                                        confidence=0.6,
+                                        word_count=total_words
+                                    ))
+                    
+                    time.sleep(1)
+                    
+                except Exception as e:
+                    st.warning(f"Error analyzing {url}: {str(e)}")
+                    continue
+            
+            # Generate structure insights
+            structure_insights = self._generate_competitor_structure_insights(competitor_structures)
+            
+            return all_topics, structure_insights
     
     def analyze_content_depth(self, competitor_topics: List[TopicData]) -> List[TopicData]:
         """Find thin content opportunities with clear, actionable topics"""
