@@ -2124,33 +2124,33 @@ def main():
                         domain = url.split('/')[2].replace('www.', '')
                         st.write(f"**{i}.** [{domain}]({url})")
 
-    # NEW: Structure Analysis Results
-                    st.subheader("🏗️ Content Structure Analysis")
+# NEW: Structure Analysis Results
+                st.subheader("🏗️ Content Structure Analysis")
+                
+                if structure_insights and structure_insights.get('common_patterns'):
+                    col1, col2 = st.columns(2)
                     
-                    if structure_insights and structure_insights.get('common_patterns'):
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.write("**Content Type Usage Across Competitors:**")
-                            for content_type, data in structure_insights['common_patterns'].items():
-                                usage_pct = data['usage_percentage']
-                                emoji = "🟢" if usage_pct > 80 else "🟡" if usage_pct > 50 else "🔴"
-                                st.write(f"{emoji} **{content_type.replace('_', ' ').title()}**: {usage_pct:.0f}% use it")
-                        
-                        with col2:
-                            st.write("**Content Structure Opportunities:**")
-                            if structure_insights.get('content_gaps'):
-                                for gap in structure_insights['content_gaps'][:5]:  # Show top 5
-                                    st.write(f"🎯 **{gap['content_type'].replace('_', ' ').title()}**: {gap['opportunity']}")
-                                    st.caption(gap['recommendation'])
-                            else:
-                                st.write("✅ Good coverage of content types across competitors")
-                    else:
-                        st.info("📊 Structure analysis available - competitor content analyzed semantically")
-                                    
-                except Exception as e:
-                    st.error(f"Error during analysis: {str(e)}")
-                    st.exception(e)
+                    with col1:
+                        st.write("**Content Type Usage Across Competitors:**")
+                        for content_type, data in structure_insights['common_patterns'].items():
+                            usage_pct = data['usage_percentage']
+                            emoji = "🟢" if usage_pct > 80 else "🟡" if usage_pct > 50 else "🔴"
+                            st.write(f"{emoji} **{content_type.replace('_', ' ').title()}**: {usage_pct:.0f}% use it")
+                    
+                    with col2:
+                        st.write("**Content Structure Opportunities:**")
+                        if structure_insights.get('content_gaps'):
+                            for gap in structure_insights['content_gaps'][:5]:  # Show top 5
+                                st.write(f"🎯 **{gap['content_type'].replace('_', ' ').title()}**: {gap['opportunity']}")
+                                st.caption(gap['recommendation'])
+                        else:
+                            st.write("✅ Good coverage of content types across competitors")
+                else:
+                    st.info("📊 Structure analysis available - competitor content analyzed semantically")
+                                
+            except Exception as e:
+                st.error(f"Error during analysis: {str(e)}")
+                st.exception(e)
     
     else:  # Website Relevance Analysis
         if not website_url:
