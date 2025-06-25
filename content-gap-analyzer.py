@@ -338,7 +338,85 @@ class DataDrivenSEOAnalyzer:
         # Sort by upvotes and take top ones
         filtered.sort(key=lambda x: x['upvotes'], reverse=True)
         return filtered[:10]  # Top 10 quality topics
+
+    def _extract_semantic_chunks(self, soup, url: str) -> List[Dict]:
+        """Extract semantic chunks using improved content analysis"""
+        chunks = []
+        chunk_index = 0
+        
+        # Semantic selectors from enhanced analysis
+        semantic_selectors = [
+            ('h1, h2, h3, h4, h5, h6', 'heading'),
+            ('p', 'paragraph'),
+            ('li', 'list_item'),
+            ('blockquote', 'quote'),
+            ('article', 'article'),
+            ('section', 'section'),
+            ('td, th', 'table_cell'),
+            ('figcaption', 'caption'),
+            ('summary', 'summary'),
+            ('dd', 'definition')
+        ]
+        
+        for selector, element_type in semantic_selectors:
+            elements = soup.select(selector)
+            
+            for element_index, element in enumerate(elements):
+                text = element.get_text(strip=True)
+                
+                if text and 50 <= len(text) <= 500:  # Length limits for quality chunks
+                    text_chunks = self._split_long_text_semantic(text, 500)
+                    
+                    for sub_index, chunk_text in enumerate(text_chunks):
+                        chunks.append({
+                            'text': chunk_text,
+                            'index': chunk_index,
+                            'element_type': element_type,
+                            'element_index': element_index,
+                            'sub_chunk_index': sub_index,
+                            'total_sub_chunks': len(text_chunks),
+                            'text_length': len(chunk_text),
+                            'source_url': url
+                        })
+                        chunk_index += 1
+        
+        return chunks
     
+    def _split_long_text_semantic(self, text: str, max_length: int) -> List[str]:
+        """Split text on sentence boundaries for better semantic chunks"""
+        if len(text) <= max_length:
+            return [text]
+        
+        chunks = []
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        current_chunk = ''
+        
+        for sentence in sentences:
+            if len(current_chunk + sentence) <= max_length:
+                current_chunk += (' ' if current_chunk else '') + sentence
+            else:
+                if current_chunk:
+                    chunks.append(current_chunk)
+                    current_chunk = sentence
+                else:
+                    # Handle very long sentences by splitting on words
+                    words = sentence.split(' ')
+                    word_chunk = ''
+                    for word in words:
+                        if len(word_chunk + word) <= max_length:
+                            word_chunk += (' ' if word_chunk else '') + word
+                        else:
+                            if word_chunk:
+                                chunks.append(word_chunk)
+                            word_chunk = word
+                    if word_chunk:
+                        current_chunk = word_chunk
+        
+        if current_chunk:
+            chunks.append(current_chunk)
+        
+        return [chunk for chunk in chunks if len(chunk) >= 50]
+        
     def scrape_competitor_content(self, urls: List[str], progress_bar=None) -> List[TopicData]:
         """Scrape competitor content with proper depth analysis"""
         all_topics = []
