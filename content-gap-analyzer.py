@@ -2210,36 +2210,6 @@ def main():
                     if show_filter != "All Pages":
                         filtered_pages = [p for p in relevance_data['pages'] 
                                         if p['relevance_status'] == show_filter.replace(" Only", "")]
-                    
-                    for i, page in enumerate(filtered_pages, 1):
-                        status_emoji = {"Irrelevant": "🔴", "Somewhat Relevant": "🟡", "Highly Relevant": "🟢"}
-                        emoji = status_emoji.get(page['relevance_status'], "⚪")
-                        
-                        with st.expander(f"{emoji} {page['title'][:60]}... (Similarity: {page['similarity_score']:.1%})"):
-                            st.write(f"**📊 Relevance:** {page['relevance_status']} ({page['similarity_score']:.1%} similar)")
-                            
-                            # Show enhancement details
-                            if page.get('enhancement_applied', False):
-                                st.write(f"**🔬 Enhanced Analysis:** Basic: {page['basic_similarity']:.1%} → Enhanced: {page['similarity_score']:.1%}")
-                            
-                            # Show structure quality
-                            if page.get('structure_quality', 0) > 0:
-                                st.write(f"**🏗️ Content Structure:** {page['structure_quality']} semantic chunks")
-                            
-                            # Show content type analysis
-                            if page.get('chunk_analysis'):
-                                chunk_analysis = page['chunk_analysis']
-                                if chunk_analysis:
-                                    st.write("**📋 Content Type Relevance:**")
-                                    for content_type, relevance in chunk_analysis.items():
-                                        type_emoji = "🟢" if relevance > 0.6 else "🟡" if relevance > 0.3 else "🔴"
-                                        st.write(f"  {type_emoji} {content_type.replace('_', ' ').title()}: {relevance:.1%}")
-                            
-                            st.write(f"**📄 Word Count:** {page['word_count']} words")
-                            st.write(f"**🔗 URL:** [{page['url']}]({page['url']})")
-                            st.write(f"**🏷️ Main Topics:** {', '.join(page['main_topics'])}")
-                            st.write(f"**📝 Preview:** {page['content_preview']}")
-                
                         with col2:
                             st.subheader("📊 Summary")
                             
@@ -2269,6 +2239,36 @@ def main():
                                     st.write(f"{emoji} **{rec['priority']}**: {rec['issue']}")
                                     st.caption(rec['recommendation'])
                                     st.caption(f"Affects: {rec['pages_affected']}")
+
+                    
+                    for i, page in enumerate(filtered_pages, 1):
+                        status_emoji = {"Irrelevant": "🔴", "Somewhat Relevant": "🟡", "Highly Relevant": "🟢"}
+                        emoji = status_emoji.get(page['relevance_status'], "⚪")
+                        
+                        with st.expander(f"{emoji} {page['title'][:60]}... (Similarity: {page['similarity_score']:.1%})"):
+                            st.write(f"**📊 Relevance:** {page['relevance_status']} ({page['similarity_score']:.1%} similar)")
+                            
+                            # Show enhancement details
+                            if page.get('enhancement_applied', False):
+                                st.write(f"**🔬 Enhanced Analysis:** Basic: {page['basic_similarity']:.1%} → Enhanced: {page['similarity_score']:.1%}")
+                            
+                            # Show structure quality
+                            if page.get('structure_quality', 0) > 0:
+                                st.write(f"**🏗️ Content Structure:** {page['structure_quality']} semantic chunks")
+                            
+                            # Show content type analysis
+                            if page.get('chunk_analysis'):
+                                chunk_analysis = page['chunk_analysis']
+                                if chunk_analysis:
+                                    st.write("**📋 Content Type Relevance:**")
+                                    for content_type, relevance in chunk_analysis.items():
+                                        type_emoji = "🟢" if relevance > 0.6 else "🟡" if relevance > 0.3 else "🔴"
+                                        st.write(f"  {type_emoji} {content_type.replace('_', ' ').title()}: {relevance:.1%}")
+                            
+                            st.write(f"**📄 Word Count:** {page['word_count']} words")
+                            st.write(f"**🔗 URL:** [{page['url']}]({page['url']})")
+                            st.write(f"**🏷️ Main Topics:** {', '.join(page['main_topics'])}")
+                            st.write(f"**📝 Preview:** {page['content_preview']}")
                     
                     # Language breakdown
                     if 'languages_detected' in relevance_data:
