@@ -2134,33 +2134,57 @@ def main():
                         with st.expander(f"{emoji} {page['title'][:60]}... (Similarity: {page['similarity_score']:.1%})"):
                             st.write(f"**📊 Relevance:** {page['relevance_status']} ({page['similarity_score']:.1%} similar)")
                             
-                            # Show boost if applied
-                            if 'original_similarity' in page and page['original_similarity'] != page['similarity_score']:
-                                st.write(f"**🚀 AI Boost:** Original: {page['original_similarity']:.1%} → Boosted: {page['similarity_score']:.1%}")
+                            # Show enhancement details
+                            if page.get('enhancement_applied', False):
+                                st.write(f"**🔬 Enhanced Analysis:** Basic: {page['basic_similarity']:.1%} → Enhanced: {page['similarity_score']:.1%}")
                             
-                            st.write(f"**🌍 Language:** {page.get('language', 'Unknown')}")
+                            # Show structure quality
+                            if page.get('structure_quality', 0) > 0:
+                                st.write(f"**🏗️ Content Structure:** {page['structure_quality']} semantic chunks")
+                            
+                            # Show content type analysis
+                            if page.get('chunk_analysis'):
+                                chunk_analysis = page['chunk_analysis']
+                                if chunk_analysis:
+                                    st.write("**📋 Content Type Relevance:**")
+                                    for content_type, relevance in chunk_analysis.items():
+                                        type_emoji = "🟢" if relevance > 0.6 else "🟡" if relevance > 0.3 else "🔴"
+                                        st.write(f"  {type_emoji} {content_type.replace('_', ' ').title()}: {relevance:.1%}")
+                            
                             st.write(f"**📄 Word Count:** {page['word_count']} words")
                             st.write(f"**🔗 URL:** [{page['url']}]({page['url']})")
                             st.write(f"**🏷️ Main Topics:** {', '.join(page['main_topics'])}")
                             st.write(f"**📝 Preview:** {page['content_preview']}")
-                            
-                            if page['relevance_status'] == 'Irrelevant':
-                                st.warning("💡 **Recommendation:** Consider removing, redirecting, or rewriting this page to match your main topic.")
-                            elif page['relevance_status'] == 'Somewhat Relevant':
-                                st.info("💡 **Recommendation:** Consider optimizing this page to better align with your main topic.")
                 
-                with col2:
-                    st.subheader("📊 Summary")
-                    
-                    total_pages = relevance_data['total_pages']
-                    irrelevant = relevance_data['irrelevant_pages']
-                    somewhat = relevance_data['somewhat_relevant']
-                    relevant = relevance_data['highly_relevant']
-                    
-                    st.metric("Total Pages Analyzed", total_pages)
-                    st.metric("🔴 Irrelevant Pages", f"{irrelevant} ({irrelevant/total_pages:.1%})")
-                    st.metric("🟡 Somewhat Relevant", f"{somewhat} ({somewhat/total_pages:.1%})")
-                    st.metric("🟢 Highly Relevant", f"{relevant} ({relevant/total_pages:.1%})")
+                        with col2:
+                            st.subheader("📊 Summary")
+                            
+                            total_pages = relevance_data['total_pages']
+                            irrelevant = relevance_data['irrelevant_pages']
+                            somewhat = relevance_data['somewhat_relevant']
+                            relevant = relevance_data['highly_relevant']
+                            
+                            st.metric("Total Pages Analyzed", total_pages)
+                            st.metric("🔴 Irrelevant Pages", f"{irrelevant} ({irrelevant/total_pages:.1%})")
+                            st.metric("🟡 Somewhat Relevant", f"{somewhat} ({somewhat/total_pages:.1%})")
+                            st.metric("🟢 Highly Relevant", f"{relevant} ({relevant/total_pages:.1%})")
+                            
+                            # NEW: Enhanced analysis stats
+                            if 'enhancement_stats' in relevance_data:
+                                enhancement_stats = relevance_data['enhancement_stats']
+                                st.subheader("🔬 Enhanced Analysis")
+                                st.metric("Pages with Enhanced Analysis", enhancement_stats['pages_enhanced'])
+                                st.metric("Avg Structure Quality", f"{enhancement_stats['avg_structure_quality']:.1f} chunks")
+                            
+                            # NEW: Structure recommendations
+                            if 'structure_recommendations' in relevance_data and relevance_data['structure_recommendations']:
+                                st.subheader("🏗️ Structure Recommendations")
+                                for rec in relevance_data['structure_recommendations']:
+                                    priority_emoji = {"High": "🔴", "Medium": "🟡", "Low": "🟢"}
+                                    emoji = priority_emoji.get(rec['priority'], "⚪")
+                                    st.write(f"{emoji} **{rec['priority']}**: {rec['issue']}")
+                                    st.caption(rec['recommendation'])
+                                    st.caption(f"Affects: {rec['pages_affected']}")
                     
                     # Language breakdown
                     if 'languages_detected' in relevance_data:
