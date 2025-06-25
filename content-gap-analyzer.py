@@ -416,6 +416,87 @@ class DataDrivenSEOAnalyzer:
             chunks.append(current_chunk)
         
         return [chunk for chunk in chunks if len(chunk) >= 50]
+
+    def _analyze_single_page_structure(self, chunks: List[Dict], url: str) -> Dict:
+        """Analyze structure of a single page"""
+        structure = {
+            'url': url,
+            'total_chunks': len(chunks),
+            'content_types': {},
+            'heading_hierarchy': [],
+            'content_flow': [],
+            'word_distribution': {}
+        }
+        
+        # Count content types
+        for chunk in chunks:
+            content_type = chunk['element_type']
+            if content_type not in structure['content_types']:
+                structure['content_types'][content_type] = 0
+            structure['content_types'][content_type] += 1
+        
+        # Analyze heading hierarchy
+        headings = [chunk for chunk in chunks if chunk['element_type'] == 'heading']
+        structure['heading_hierarchy'] = [h['text'][:50] for h in headings]
+        
+        # Analyze content flow
+        structure['content_flow'] = [chunk['element_type'] for chunk in chunks]
+        
+        # Word distribution
+        for content_type, count in structure['content_types'].items():
+            if count > 0:
+                avg_words = sum(chunk['text_length'] for chunk in chunks 
+                               if chunk['element_type'] == content_type) / count
+                structure['word_distribution'][content_type] = avg_words
+        
+        return structure
+    
+    def _generate_competitor_structure_insights(self, competitor_structures: Dict) -> Dict:
+        """Generate insights from competitor structure analysis"""
+        insights = {
+            'common_patterns': {},
+            'content_gaps': [],
+            'structure_opportunities': [],
+            'depth_analysis': {}
+        }
+        
+        if not competitor_structures:
+            return insights
+        
+        all_content_types = set()
+        content_type_frequency = {}
+        
+        # Analyze patterns across competitors
+        for url, structure in competitor_structures.items():
+            for content_type, count in structure['content_types'].items():
+                all_content_types.add(content_type)
+                if content_type not in content_type_frequency:
+                    content_type_frequency[content_type] = []
+                content_type_frequency[content_type].append(count)
+        
+        # Find common patterns
+        for content_type in all_content_types:
+            frequencies = content_type_frequency[content_type]
+            avg_frequency = sum(frequencies) / len(frequencies) if frequencies else 0
+            competitors_using = len(frequencies)
+            total_competitors = len(competitor_structures)
+            
+            insights['common_patterns'][content_type] = {
+                'avg_count': avg_frequency,
+                'usage_percentage': (competitors_using / total_competitors) * 100,
+                'competitors_using': competitors_using
+            }
+        
+        # Find content gaps (content types used by <50% of competitors)
+        for content_type, data in insights['common_patterns'].items():
+            if data['usage_percentage'] < 50:
+                insights['content_gaps'].append({
+                    'content_type': content_type,
+                    'opportunity': f"Only {data['competitors_using']}/{len(competitor_structures)} competitors use {content_type}",
+                    'recommendation': f"Add more {content_type.replace('_', ' ')} content"
+                })
+        
+        return insights
         
     def scrape_competitor_content(self, urls: List[str], progress_bar=None) -> List[TopicData]:
         """Scrape competitor content with proper depth analysis"""
