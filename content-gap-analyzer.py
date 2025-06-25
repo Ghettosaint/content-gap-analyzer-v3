@@ -1873,7 +1873,22 @@ def main():
     # Sidebar
     with st.sidebar:
         st.header("⚙️ Configuration")
+
+        # Buy Me a Coffee Widget
+        st.markdown("---")
+        st.markdown("### ☕ Support This Tool")
+        st.markdown("""
+        If this tool has offered any value and helped you with your work, any support would be appreciated!
         
+        <a href="https://www.buymeacoffee.com/deyangeorgiev" target="_blank">
+            <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" 
+                 alt="Buy Me A Coffee" 
+                 style="height: 50px !important;width: 180px !important;" >
+        </a>
+        
+        <script data-name="BMC-Widget" data-cfasync="false" src="https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js" data-id="deyangeorgiev" data-description="Support me on Buy me a coffee!" data-message="If this tool has offered any value and helped you with your work, any support would be appreciated so I can continue improving it and adding more features!" data-color="#5F7FFF" data-position="Right" data-x_margin="18" data-y_margin="18"></script>
+        """, unsafe_allow_html=True)
+        st.markdown("---")
         # Tool selection
         analysis_mode = st.radio(
             "Choose Analysis Type:",
