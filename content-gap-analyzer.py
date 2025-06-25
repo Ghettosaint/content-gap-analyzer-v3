@@ -1212,6 +1212,116 @@ class DataDrivenSEOAnalyzer:
             return "Somewhat Relevant"
         else:
             return "Irrelevant"
+
+    def _calculate_enhanced_relevance(self, page: Dict, target_embedding: np.ndarray, target_topic: str) -> Dict:
+            """Enhanced relevance calculation using semantic analysis"""
+            
+            # Basic relevance (same as before)
+            basic_similarity = cosine_similarity([target_embedding], 
+                                               [self.embedding_model.encode([page['content']])[0]])[0][0]
+            
+            # Try to get better content structure if we have raw HTML
+            enhanced_similarity = basic_similarity
+            chunk_analysis = {}
+            structure_quality = 0
+            
+            # If we can parse the content better, do semantic analysis
+            try:
+                if len(page['content']) > 200:  # Only for substantial content
+                    # Create a simple soup from content to try semantic chunking
+                    soup = BeautifulSoup(f"<div>{page['content']}</div>", 'html.parser')
+                    semantic_chunks = self._extract_semantic_chunks(soup, page['url'])
+                    
+                    if semantic_chunks:
+                        structure_quality = len(semantic_chunks)
+                        
+                        # Analyze relevance by content type
+                        chunk_relevances = {}
+                        for chunk in semantic_chunks:
+                            chunk_embedding = self.embedding_model.encode([chunk['text']])[0]
+                            chunk_similarity = cosine_similarity([target_embedding], [chunk_embedding])[0][0]
+                            
+                            content_type = chunk['element_type']
+                            if content_type not in chunk_relevances:
+                                chunk_relevances[content_type] = []
+                            chunk_relevances[content_type].append(chunk_similarity)
+                        
+                        # Calculate weighted relevance (headings matter more)
+                        weights = {'heading': 0.3, 'paragraph': 0.4, 'list_item': 0.2, 'quote': 0.1}
+                        
+                        if chunk_relevances:
+                            total_weight = 0
+                            weighted_sum = 0
+                            
+                            for content_type, similarities in chunk_relevances.items():
+                                weight = weights.get(content_type, 0.1)
+                                avg_similarity = sum(similarities) / len(similarities)
+                                weighted_sum += avg_similarity * weight
+                                total_weight += weight
+                            
+                            if total_weight > 0:
+                                enhanced_similarity = weighted_sum / total_weight
+                        
+                        chunk_analysis = {k: sum(v)/len(v) for k, v in chunk_relevances.items()}
+            
+            except Exception:
+                # If enhanced analysis fails, stick with basic
+                pass
+            
+            return {
+                'url': page['url'],
+                'title': page['title'],
+                'word_count': page['word_count'],
+                'similarity_score': enhanced_similarity,
+                'basic_similarity': basic_similarity,
+                'relevance_status': self._categorize_relevance(enhanced_similarity),
+                'content_preview': page['content'][:200] + "...",
+                'main_topics': self._extract_main_topics(page['content']),
+                'chunk_analysis': chunk_analysis,  # NEW: Per-content-type relevance
+                'structure_quality': structure_quality,  # NEW: Number of semantic chunks found
+                'enhancement_applied': enhanced_similarity != basic_similarity
+            }
+        
+        def _generate_website_structure_recommendations(self, pages_data: List[Dict], target_topic: str) -> List[Dict]:
+            """Generate structure improvement recommendations for website analysis"""
+            recommendations = []
+            
+            # Analyze overall structure quality
+            total_pages = len(pages_data)
+            low_structure_pages = len([p for p in pages_data if p.get('structure_quality', 0) < 3])
+            
+            if low_structure_pages > total_pages * 0.3:  # More than 30% have poor structure
+                recommendations.append({
+                    'type': 'content_structure',
+                    'priority': 'High',
+                    'issue': f"{low_structure_pages} pages have poor content structure",
+                    'recommendation': "Improve content structure with more headings, lists, and organized paragraphs",
+                    'pages_affected': low_structure_pages
+                })
+            
+            # Analyze content type usage
+            content_type_usage = {}
+            for page in pages_data:
+                chunk_analysis = page.get('chunk_analysis', {})
+                for content_type in chunk_analysis.keys():
+                    if content_type not in content_type_usage:
+                        content_type_usage[content_type] = 0
+                    content_type_usage[content_type] += 1
+            
+            # Check for missing important content types
+            important_types = ['heading', 'paragraph', 'list_item']
+            for content_type in important_types:
+                usage_pct = (content_type_usage.get(content_type, 0) / total_pages) * 100
+                if usage_pct < 50:  # Less than 50% of pages use this content type
+                    recommendations.append({
+                        'type': 'content_type',
+                        'priority': 'Medium',
+                        'issue': f"Only {usage_pct:.0f}% of pages use {content_type.replace('_', ' ')} content",
+                        'recommendation': f"Add more {content_type.replace('_', ' ')} elements across your website",
+                        'pages_affected': f"{usage_pct:.0f}% of pages"
+                    })
+            
+            return recommendations
     
     def _extract_main_topics(self, content: str) -> List[str]:
         """Extract main topics from content using simple keyword extraction with fallback"""
