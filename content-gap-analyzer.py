@@ -150,6 +150,123 @@ class DataDrivenSEOAnalyzer:
             # Fallback stopwords if NLTK fails
             self.stop_words = {'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'this', 'that', 'these', 'those', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'about', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'up', 'down', 'out', 'off', 'over', 'under', 'again', 'further', 'then', 'once'}
     
+    def run_analysis(self, keyword: str, num_competitors: int = 10) -> Dict:
+        """Main method to run the complete SEO analysis"""
+        try:
+            # Get competitor URLs
+            competitor_urls = self.get_competitor_urls(keyword, num_competitors)
+            if not competitor_urls:
+                return {"error": "No competitors found"}
+            
+            # Scrape competitor content
+            competitor_topics = self.scrape_competitor_content(competitor_urls)
+            
+            # Get Reddit discussions
+            reddit_topics = self.get_reddit_discussions(keyword)
+            
+            # Get search suggestions
+            search_topics = self.get_search_suggestions(keyword)
+            
+            # Find content gaps
+            gaps = self.find_content_gaps(competitor_topics, reddit_topics, search_topics)
+            
+            # Find depth gaps
+            depth_gaps = self.find_depth_gaps(competitor_topics)
+            
+            # Enhanced: Get structure insights
+            structure_insights = self.analyze_content_structure(competitor_topics)
+            
+            return {
+                'competitor_urls': competitor_urls,
+                'competitor_topics': competitor_topics,
+                'reddit_topics': reddit_topics,
+                'search_topics': search_topics,
+                'gaps': gaps,
+                'depth_gaps': depth_gaps,
+                'structure_insights': structure_insights,
+                'total_opportunities': len(gaps) + len(depth_gaps)
+            }
+            
+        except Exception as e:
+            return {"error": f"Analysis failed: {str(e)}"}
+        
+    def analyze_content_structure(self, competitor_topics: List[TopicData]) -> Dict:
+        """Analyze content structure patterns across competitors"""
+        try:
+            structure_analysis = {}
+            
+            # Group by competitor
+            by_competitor = {}
+            for topic in competitor_topics:
+                comp_id = topic.competitor_id
+                if comp_id not in by_competitor:
+                    by_competitor[comp_id] = []
+                by_competitor[comp_id].append(topic)
+            
+            # Analyze patterns
+            content_types = {}
+            for comp_id, topics in by_competitor.items():
+                for topic in topics:
+                    # Analyze content type based on text patterns
+                    content_type = self._classify_content_type(topic.text)
+                    if content_type not in content_types:
+                        content_types[content_type] = {'count': 0, 'competitors': set()}
+                    content_types[content_type]['count'] += 1
+                    content_types[content_type]['competitors'].add(comp_id)
+            
+            # Calculate usage patterns
+            total_competitors = len(by_competitor)
+            common_patterns = {}
+            
+            for content_type, data in content_types.items():
+                usage_percentage = (len(data['competitors']) / total_competitors) * 100
+                common_patterns[content_type] = {
+                    'usage_percentage': usage_percentage,
+                    'total_instances': data['count'],
+                    'competitors_using': len(data['competitors'])
+                }
+            
+            # Identify content gaps
+            content_gaps = []
+            for content_type, data in common_patterns.items():
+                if data['usage_percentage'] > 60:  # If most competitors use it
+                    content_gaps.append({
+                        'content_type': content_type,
+                        'opportunity': f"High adoption rate ({data['usage_percentage']:.0f}%)",
+                        'recommendation': f"Consider adding {content_type.replace('_', ' ')} content"
+                    })
+            
+            return {
+                'common_patterns': common_patterns,
+                'content_gaps': content_gaps,
+                'total_competitors_analyzed': total_competitors
+            }
+            
+        except Exception as e:
+            return {'error': f"Structure analysis failed: {str(e)}"}
+    
+    def _classify_content_type(self, text: str) -> str:
+        """Classify content type based on text patterns"""
+        text_lower = text.lower()
+        
+        # Classification rules
+        if any(keyword in text_lower for keyword in ['how to', 'tutorial', 'guide', 'step']):
+            return 'tutorial_content'
+        elif any(keyword in text_lower for keyword in ['review', 'rating', 'pros', 'cons']):
+            return 'review_content'
+        elif any(keyword in text_lower for keyword in ['list', 'top', 'best', 'worst']):
+            return 'list_content'
+        elif any(keyword in text_lower for keyword in ['what is', 'definition', 'meaning']):
+            return 'definition_content'
+        elif any(keyword in text_lower for keyword in ['compare', 'vs', 'versus', 'difference']):
+            return 'comparison_content'
+        elif len(text.split()) < 50:
+            return 'short_content'
+        elif len(text.split()) > 500:
+            return 'comprehensive_content'
+        else:
+            return 'standard_content'
+        
     def search_competitors(self, keyword: str, num_results: int = 10) -> List[str]:
         """Search for competitor URLs using Serper"""
         url = "https://google.serper.dev/search"
