@@ -189,6 +189,92 @@ class DataDrivenSEOAnalyzer:
             
         except Exception as e:
             return {"error": f"Analysis failed: {str(e)}"}
+
+    def scrape_competitor_content(self, urls: List[str]) -> List[TopicData]:
+    """Scrape content from competitor URLs"""
+    all_topics = []
+    
+    for i, url in enumerate(urls):
+        try:
+            # Get page content
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            # Parse with BeautifulSoup
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Remove script and style elements
+            for script in soup(["script", "style", "nav", "footer", "header"]):
+                script.decompose()
+            
+            # Extract semantic chunks using our improved method
+            semantic_chunks = self._extract_semantic_chunks(soup, url)
+            
+            if semantic_chunks:
+                # Process chunks for embeddings
+                chunk_texts = [chunk['text'] for chunk in semantic_chunks]
+                embeddings = self.embedding_model.encode(chunk_texts)
+                
+                # Calculate total page word count once
+                full_page_content = ' '.join([chunk['text'] for chunk in semantic_chunks])
+                total_page_words = len([w for w in full_page_content.split() if w.isalpha()])
+                
+                for chunk, embedding in zip(semantic_chunks, embeddings):
+                    all_topics.append(TopicData(
+                        text=chunk['text'],
+                        embedding=embedding,
+                        source='competitor_deep',
+                        source_url=url,
+                        competitor_id=i,
+                        confidence=0.7,
+                        word_count=total_page_words  # Fixed: Use total page words
+                    ))
+            
+            else:
+                # Fallback: extract headings and key content
+                headings = []
+                for tag in ['h1', 'h2', 'h3', 'title']:
+                    elements = soup.find_all(tag)
+                    for elem in elements:
+                        text = elem.get_text(strip=True)
+                        if text and len(text) > 10:
+                            headings.append(text)
+                
+                # Get body text for word count
+                body_text = soup.get_text(separator=' ', strip=True)
+                total_words = len([w for w in body_text.split() if w.isalpha()])
+                
+                if headings:
+                    embeddings = self.embedding_model.encode(headings[:5])
+                    for heading, embedding in zip(headings[:5], embeddings):
+                        all_topics.append(TopicData(
+                            text=heading,
+                            embedding=embedding,
+                            source='competitor',
+                            source_url=url,
+                            competitor_id=i,
+                            confidence=0.6,
+                            word_count=total_words
+                        ))
+        
+        except Exception as e:
+            st.warning(f"Error scraping {url}: {str(e)}")
+            # Add a dummy topic so the analysis doesn't fail completely
+            all_topics.append(TopicData(
+                text=f"Content from {url.split('/')[2] if '/' in url else url}",
+                embedding=self.embedding_model.encode([f"Content from {url}"])[0],
+                source='competitor',
+                source_url=url,
+                competitor_id=i,
+                confidence=0.3,
+                word_count=500
+            ))
+    
+    return all_topics
         
     def analyze_content_structure(self, competitor_topics: List[TopicData]) -> Dict:
         """Analyze content structure patterns across competitors"""
