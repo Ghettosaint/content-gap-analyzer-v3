@@ -2103,28 +2103,121 @@ def main():
                 
                 with col1:
                     if fig:
-                        # Display the chart with selection capability
-                        event = st.plotly_chart(fig, use_container_width=True, key="main_chart")
+                        # Display the chart with click functionality
+                        st.plotly_chart(fig, use_container_width=True, key="main_chart", on_select="rerun")
                         
-                        # Check for clicked points
-                        if st.session_state.get('clicked_point'):
-                            st.subheader("🎯 Selected Point Details")
-                            point_data = st.session_state.clicked_point
+                        # Handle click events
+                        if st.session_state.get("main_chart", {}).get("selection", {}).get("points"):
+                            selected_points = st.session_state["main_chart"]["selection"]["points"]
                             
-                            st.write(f"**Type:** {point_data.get('trace_name', 'Unknown')}")
-                            st.write(f"**Topic:** {point_data.get('text', 'N/A')}")
-                            
-                            if point_data.get('url'):
-                                st.write(f"**URL:** [{point_data['url']}]({point_data['url']})")
-                                st.code(point_data['url'], language=None)
-                            
-                            if st.button("Clear Selection"):
-                                del st.session_state.clicked_point
-                                st.rerun()
-                        
-                        # Instructions for users
-                        st.info("💡 **Tip:** Click on legend items to show/hide data types. Use the legend toggle functionality to focus on specific data sources!")
-                        
+                            if selected_points:
+                                # Get the first selected point
+                                point = selected_points[0]
+                                point_index = point.get("pointIndex")
+                                curve_number = point.get("curveNumber")
+                                
+                                # Map curve number to data source
+                                trace_names = ['🏢 Competitor Content', '💬 Reddit Questions', '🔍 Search Suggestions', 
+                                              '📊 Thin Content Gaps', '🎯 CONTENT GAPS']
+                                
+                                if curve_number is not None and curve_number < len(trace_names):
+                                    trace_name = trace_names[curve_number]
+                                    
+                                    # Get the corresponding topic data
+                                    selected_topic = None
+                                    
+                                    if trace_name == '🏢 Competitor Content' and point_index < len(competitor_topics):
+                                        selected_topic = competitor_topics[point_index]
+                                    elif trace_name == '💬 Reddit Questions':
+                                        reddit_start = len(competitor_topics)
+                                        if point_index < len(reddit_topics):
+                                            selected_topic = reddit_topics[point_index]
+                                    elif trace_name == '🔍 Search Suggestions':
+                                        if point_index < len(search_topics):
+                                            selected_topic = search_topics[point_index]
+                                    elif trace_name == '📊 Thin Content Gaps':
+                                        if point_index < len(depth_gaps):
+                                            selected_topic = depth_gaps[point_index]
+                                    elif trace_name == '🎯 CONTENT GAPS':
+                                        if point_index < len(gaps):
+                                            selected_topic = gaps[point_index]
+                                    
+                                    # Display selected point details
+                                    if selected_topic:
+                                        st.success("🎯 **Point Selected!** Click anywhere else to deselect.")
+                                        
+                                        col_detail1, col_detail2 = st.columns([2, 1])
+                                        
+                                        with col_detail1:
+                                            st.subheader(f"{trace_name} - Details")
+                                            
+                                            # Topic text
+                                            st.write(f"**📝 Topic:** {selected_topic.text}")
+                                            
+                                            # Source information
+                                            if selected_topic.source == 'competitor':
+                                                comp_name = competitor_urls[selected_topic.competitor_id].split('/')[2].replace('www.', '') if selected_topic.competitor_id < len(competitor_urls) else 'Unknown'
+                                                st.write(f"**🏢 Competitor:** {comp_name}")
+                                                st.write(f"**📄 Word Count:** {selected_topic.word_count} words")
+                                            elif selected_topic.source == 'reddit':
+                                                st.write(f"**👍 Upvotes:** {selected_topic.upvotes}")
+                                                st.write(f"**💬 Source:** Reddit discussion")
+                                            elif selected_topic.source == 'search_suggest':
+                                                st.write(f"**🔍 Source:** Google search suggestions")
+                                                st.write(f"**💡 Insight:** People actively search for this")
+                                            elif selected_topic.source == 'depth_gap':
+                                                st.write(f"**📊 Current depth:** {selected_topic.word_count} words")
+                                                st.write(f"**💡 Opportunity:** Create comprehensive guide")
+                                            
+                                            # Confidence score
+                                            st.write(f"**🎯 Confidence:** {selected_topic.confidence:.1%}")
+                                            
+                                            # URL if available
+                                            if selected_topic.source_url and selected_topic.source_url != 'google_autocomplete':
+                                                st.write(f"**🔗 URL:** [{selected_topic.source_url}]({selected_topic.source_url})")
+                                                
+                                                # Copy URL button
+                                                if st.button("📋 Copy URL", key=f"copy_{point_index}_{curve_number}"):
+                                                    st.code(selected_topic.source_url)
+                                                    st.success("URL copied to display! You can copy it from above.")
+                                        
+                                        with col_detail2:
+                                            # Action recommendations
+                                            st.subheader("💡 Action Items")
+                                            
+                                            if selected_topic.source == 'competitor':
+                                                st.info("**Competitor Analysis:**")
+                                                st.write("• Analyze their content approach")
+                                                st.write("• Identify improvement opportunities") 
+                                                st.write("• Note their content structure")
+                                            elif selected_topic.source in ['reddit', 'search_suggest', 'depth_gap']:
+                                                st.success("**Content Opportunity:**")
+                                                st.write("• Create comprehensive content")
+                                                st.write("• Target this specific topic")
+                                                st.write("• Address user questions directly")
+                                            
+                                            # SEO recommendations
+                                            st.subheader("🎯 SEO Strategy")
+                                            if selected_topic.source == 'search_suggest':
+                                                st.write("• High search volume potential")
+                                                st.write("• Target exact search query")
+                                                st.write("• Optimize for featured snippets")
+                                            elif selected_topic.source == 'reddit':
+                                                st.write("• Answer real user questions")
+                                                st.write("• Create FAQ-style content")
+                                                st.write("• Build topical authority")
+                                            elif selected_topic.source == 'depth_gap':
+                                                st.write("• Create definitive guide")
+                                                st.write("• Aim for 2000+ words")
+                                                st.write("• Outrank thin content")
+                                            
+                                        st.markdown("---")
+                                        
+                                        # Clear selection button
+                                        if st.button("🔄 Clear Selection", key="clear_selection"):
+                                            if "main_chart" in st.session_state:
+                                                del st.session_state["main_chart"]
+                                            st.rerun()
                     else:
                         st.error("No data found for visualization")
                 
