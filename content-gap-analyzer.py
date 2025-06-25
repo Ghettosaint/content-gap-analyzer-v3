@@ -275,6 +275,291 @@ class DataDrivenSEOAnalyzer:
                 ))
         
         return all_topics
+
+
+    def find_content_gaps(self, competitor_topics: List[TopicData], reddit_topics: List[TopicData], search_topics: List[TopicData]) -> List[TopicData]:
+        """Find content gaps between user needs and competitor coverage"""
+        all_user_topics = reddit_topics + search_topics
+        gaps = []
+        
+        if not all_user_topics:
+            return gaps
+        
+        if not competitor_topics:
+            # If no competitor data, everything is a gap
+            return all_user_topics
+        
+        competitor_embeddings = np.array([t.embedding for t in competitor_topics])
+        
+        # More aggressive gap detection
+        for user_topic in all_user_topics:
+            # Check if competitors cover this topic
+            similarities = cosine_similarity([user_topic.embedding], competitor_embeddings)[0]
+            max_similarity = np.max(similarities) if len(similarities) > 0 else 0
+            
+            # Lower threshold for gap detection (was 0.7, now 0.6)
+            if max_similarity < 0.6:
+                gaps.append(user_topic)
+            elif 0.6 <= max_similarity < 0.75:
+                # Check if it's a high-value topic
+                if (user_topic.source == 'search_suggest' or 
+                    (user_topic.source == 'reddit' and user_topic.upvotes > 20)):
+                    user_topic.confidence = user_topic.confidence * 0.8
+                    gaps.append(user_topic)
+        
+        # Sort by confidence and engagement
+        gaps.sort(key=lambda x: (x.confidence, x.upvotes), reverse=True)
+        return gaps
+    
+    def find_depth_gaps(self, competitor_topics: List[TopicData]) -> List[TopicData]:
+        """Find thin content opportunities"""
+        depth_gaps = []
+        
+        if not competitor_topics:
+            return depth_gaps
+        
+        # Group by URL to get article depths
+        url_depths = {}
+        url_topics = {}
+        
+        for topic in competitor_topics:
+            url = topic.source_url
+            if url not in url_depths:
+                url_depths[url] = topic.word_count
+                url_topics[url] = topic.text
+        
+        # Find thin content (less than 1500 words)
+        thin_content = {url: words for url, words in url_depths.items() if words < 1500}
+        
+        if thin_content:
+            for url, word_count in list(thin_content.items())[:3]:
+                original_topic = url_topics.get(url, "")
+                meaningful_topic = self._extract_meaningful_topic(original_topic, url)
+                gap_text = f"Complete {meaningful_topic} Guide (current best: {word_count} words)"
+                gap_embedding = self.embedding_model.encode([gap_text])[0]
+                
+                depth_gaps.append(TopicData(
+                    text=gap_text,
+                    embedding=gap_embedding,
+                    source='depth_gap',
+                    source_url=url,
+                    competitor_id=-1,
+                    confidence=0.8,
+                    word_count=word_count
+                ))
+        
+        return depth_gaps
+    
+    def _extract_meaningful_topic(self, heading: str, url: str) -> str:
+        """Extract a clear, actionable topic from heading or URL"""
+        cleaned_heading = heading.strip()
+        
+        # Remove common prefixes
+        prefixes_to_remove = ['r/', 'complete guide:', 'ultimate guide:', 'best', 'top', 'how to']
+        for prefix in prefixes_to_remove:
+            if cleaned_heading.lower().startswith(prefix.lower()):
+                cleaned_heading = cleaned_heading[len(prefix):].strip()
+        
+        # If heading is unclear, extract from URL
+        if len(cleaned_heading.split()) < 2:
+            domain = url.split('/')[2].replace('www.', '')
+            return f"{domain.split('.')[0].title()} Guide"
+        
+        return cleaned_heading.title() if cleaned_heading else "Content Topic"
+    
+    def generate_actionable_topics(self, gaps: List[TopicData], depth_gaps: List[TopicData], reddit_topics: List[TopicData], search_topics: List[TopicData]) -> List[Dict]:
+        """Generate actionable content topics"""
+        all_gaps = gaps + depth_gaps
+        actionable_topics = []
+        
+        for gap in all_gaps:
+            # Generate better topic titles
+            if gap.source == 'reddit':
+                topic_title = self._reddit_to_topic(gap.text)
+            elif gap.source == 'search_suggest':
+                topic_title = f"Ultimate Guide: {gap.text.title()}"
+            elif gap.source == 'depth_gap':
+                topic_title = gap.text
+            else:
+                topic_title = f"Complete Guide: {gap.text}"
+            
+            # Calculate scores
+            difficulty = self._estimate_difficulty(gap.text)
+            opportunity_score = self._calculate_opportunity_score(gap)
+            
+            actionable_topics.append({
+                'title': topic_title,
+                'difficulty': difficulty,
+                'opportunity_score': opportunity_score,
+                'source': gap.source,
+                'upvotes': gap.upvotes,
+                'confidence': gap.confidence,
+                'why_gap': self._explain_gap(gap),
+                'content_angle': self._suggest_angle(gap)
+            })
+        
+        actionable_topics.sort(key=lambda x: x['opportunity_score'], reverse=True)
+        return actionable_topics
+    
+    def _reddit_to_topic(self, reddit_text: str) -> str:
+        """Convert Reddit question to blog post title"""
+        text = reddit_text.strip()
+        if '?' in text:
+            clean_text = text.replace('?', '').strip()
+            return f"Complete Guide: {clean_text}"
+        return f"Ultimate Guide: {text[:60]}..."
+    
+    def _estimate_difficulty(self, text: str) -> str:
+        """Estimate content difficulty"""
+        text_lower = text.lower()
+        if any(word in text_lower for word in ['api', 'technical', 'advanced']):
+            return 'Hard'
+        elif any(word in text_lower for word in ['setup', 'install', 'configure']):
+            return 'Medium'
+        else:
+            return 'Easy'
+    
+    def _calculate_opportunity_score(self, gap: TopicData) -> float:
+        """Calculate opportunity score 0-100"""
+        score = gap.confidence * 50
+        if gap.source == 'reddit' and gap.upvotes > 0:
+            score += min(gap.upvotes * 2, 30)
+        if gap.source == 'search_suggest':
+            score += 20
+        if gap.source == 'depth_gap':
+            score += 15
+        return min(score, 100)
+    
+    def _explain_gap(self, gap: TopicData) -> str:
+        """Explain why this is a gap"""
+        if gap.source == 'reddit':
+            return f"Real users asking about this (upvotes: {gap.upvotes}), but competitors don't address it well"
+        elif gap.source == 'search_suggest':
+            return "People actively search for this, but current results are weak"
+        elif gap.source == 'depth_gap':
+            return f"Current best content is only {gap.word_count} words - opportunity for comprehensive coverage"
+        else:
+            return "User demand exists but competition is low"
+    
+    def _suggest_angle(self, gap: TopicData) -> str:
+        """Suggest content approach"""
+        if gap.source == 'reddit':
+            return "FAQ/Problem-solving format - address specific user pain points"
+        elif gap.source == 'search_suggest':
+            return "SEO-optimized comprehensive guide targeting the exact search query"
+        elif gap.source == 'depth_gap':
+            return f"Create 2000+ word definitive guide (currently only {gap.word_count} words available)"
+        else:
+            return "Complete guide covering all aspects of the topic"
+    
+    def create_3d_visualization(self, competitor_topics: List[TopicData], reddit_topics: List[TopicData], search_topics: List[TopicData], depth_gaps: List[TopicData], gaps: List[TopicData]) -> go.Figure:
+        """Create 3D visualization of the analysis"""
+        all_topics = competitor_topics + reddit_topics + search_topics + depth_gaps
+        if not all_topics:
+            return None
+        
+        embeddings = np.array([topic.embedding for topic in all_topics])
+        
+        # Reduce to 3D
+        pca = PCA(n_components=3)
+        embeddings_3d = pca.fit_transform(embeddings)
+        
+        fig = go.Figure()
+        
+        # Plot competitor topics
+        comp_indices = [i for i, topic in enumerate(all_topics) if topic.source in ['competitor', 'competitor_deep']]
+        if comp_indices:
+            comp_data = embeddings_3d[comp_indices]
+            comp_colors = [all_topics[i].competitor_id for i in comp_indices]
+            comp_hovers = [f"🏢 Competitor Content<br>Topic: {all_topics[i].text[:60]}...<br>Words: {all_topics[i].word_count}" for i in comp_indices]
+            
+            fig.add_trace(go.Scatter3d(
+                x=comp_data[:, 0], y=comp_data[:, 1], z=comp_data[:, 2],
+                mode='markers',
+                marker=dict(size=6, opacity=0.6, color=comp_colors, colorscale='Viridis'),
+                hovertemplate='%{hovertext}<extra></extra>',
+                hovertext=comp_hovers,
+                name='🏢 Competitor Content',
+                showlegend=True
+            ))
+        
+        # Plot Reddit topics
+        reddit_indices = [i for i, topic in enumerate(all_topics) if topic.source == 'reddit']
+        if reddit_indices:
+            reddit_data = embeddings_3d[reddit_indices]
+            reddit_hovers = [f"💬 Reddit Question<br>{all_topics[i].text[:60]}...<br>Upvotes: {all_topics[i].upvotes}" for i in reddit_indices]
+            
+            fig.add_trace(go.Scatter3d(
+                x=reddit_data[:, 0], y=reddit_data[:, 1], z=reddit_data[:, 2],
+                mode='markers',
+                marker=dict(size=8, opacity=0.8, color='orange', symbol='square'),
+                hovertemplate='%{hovertext}<extra></extra>',
+                hovertext=reddit_hovers,
+                name='💬 Reddit Questions',
+                showlegend=True
+            ))
+        
+        # Plot search suggestions
+        search_indices = [i for i, topic in enumerate(all_topics) if topic.source == 'search_suggest']
+        if search_indices:
+            search_data = embeddings_3d[search_indices]
+            search_hovers = [f"🔍 Search Suggestion<br>Query: {all_topics[i].text}" for i in search_indices]
+            
+            fig.add_trace(go.Scatter3d(
+                x=search_data[:, 0], y=search_data[:, 1], z=search_data[:, 2],
+                mode='markers',
+                marker=dict(size=8, opacity=0.8, color='blue', symbol='cross'),
+                hovertemplate='%{hovertext}<extra></extra>',
+                hovertext=search_hovers,
+                name='🔍 Search Suggestions',
+                showlegend=True
+            ))
+        
+        # Plot depth gaps
+        depth_indices = [i for i, topic in enumerate(all_topics) if topic.source == 'depth_gap']
+        if depth_indices:
+            depth_data = embeddings_3d[depth_indices]
+            depth_hovers = [f"📊 Thin Content Gap<br>Topic: {all_topics[i].text}<br>Current: {all_topics[i].word_count} words" for i in depth_indices]
+            
+            fig.add_trace(go.Scatter3d(
+                x=depth_data[:, 0], y=depth_data[:, 1], z=depth_data[:, 2],
+                mode='markers',
+                marker=dict(size=10, opacity=0.9, color='purple', symbol='circle'),
+                hovertemplate='%{hovertext}<extra></extra>',
+                hovertext=depth_hovers,
+                name='📊 Thin Content Gaps',
+                showlegend=True
+            ))
+        
+        # Highlight content gaps
+        gap_texts = [gap.text for gap in gaps]
+        gap_indices = [i for i, topic in enumerate(all_topics) if topic.text in gap_texts]
+        
+        if gap_indices:
+            gap_data = embeddings_3d[gap_indices]
+            gap_hovers = [f"🎯 CONTENT GAP<br>Topic: {all_topics[i].text[:60]}...<br>Confidence: {all_topics[i].confidence:.1%}" for i in gap_indices]
+            
+            fig.add_trace(go.Scatter3d(
+                x=gap_data[:, 0], y=gap_data[:, 1], z=gap_data[:, 2],
+                mode='markers',
+                marker=dict(size=15, symbol='diamond', color='red', opacity=1.0, line=dict(color='black', width=2)),
+                hovertemplate='%{hovertext}<extra></extra>',
+                hovertext=gap_hovers,
+                name=f'🎯 CONTENT GAPS ({len(gaps)})'
+            ))
+        
+        fig.update_layout(
+            title='Content Gap Analysis Visualization',
+            scene=dict(
+                xaxis_title='Semantic Dimension 1',
+                yaxis_title='Semantic Dimension 2', 
+                zaxis_title='Semantic Dimension 3'
+            ),
+            width=1000,
+            height=700
+        )
+        
+        return fig
         
     def analyze_content_structure(self, competitor_topics: List[TopicData]) -> Dict:
         """Analyze content structure patterns across competitors"""
